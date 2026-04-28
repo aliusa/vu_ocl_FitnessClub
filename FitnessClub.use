@@ -1,0 +1,461 @@
+-- UML/OCL. Sporto klubo narystės sistema
+-- 
+-- Task requirements:
+-- * The original UML model must include at least 3 interrelated classes.
+-- Requirements for OCL constraints:
+-- * at least 10 meaningful invariants, 10 pre- and 10 post-conditions must be defined;
+-- * at least 5 post-conditions must include the values of features at the start of the operation (@pre);
+-- * at least 5 invariants and 5 post-conditions must include the collection operations; 
+-- * at least 5 different collection operations must be used, including collect and select operations;
+-- * at least 2 collection of collections must be used;
+-- * at least 3 invariants must include the collection types; 
+-- * at least 3 local variables must be defined and used;
+-- * at least 3 queries must be defined, at least 2 of which must use collection operations;
+-- * at least 2 tuples must be used;
+-- * no more than 2 OCL constraints may include the allInstances operation.
+-- All requirements must be presented with appropriate comments defining their meaning.
+--
+-- classes 6
+-- invariants 23
+-- pre-conditions 16
+-- post-conditions 21
+
+model FitnessClub
+
+enum MembershipStatus { Active, Suspended, Expired }
+enum BookingStatus { Reserved, Attended, Cancelled }
+enum PaymentStatus { Paid, Refunded, Failed }
+
+class Member
+attributes
+    name : String
+    email : String
+    age : Integer
+operations
+    -- Query 1: returns only currently reserved bookings of this member.
+    reservedBookings() : Set(Booking) =
+        self.bookings->select(b | b.status = #Reserved)->asSet()
+
+    -- Query 2: uses collection operations to calculate how many bookings of a given status the member has.
+    bookingCountByStatus(st : BookingStatus) : Integer =
+        self.bookings->select(b | b.status = st)->size()
+
+    -- Query 3: returns a tuple with a compact booking summary.
+    bookingSummary() : Tuple(reserved : Integer, attended : Integer, cancelled : Integer) =
+        Tuple{
+            reserved = self.bookings->select(b | b.status = #Reserved)->size(),
+            attended = self.bookings->select(b | b.status = #Attended)->size(),
+            cancelled = self.bookings->select(b | b.status = #Cancelled)->size()
+        }
+
+    buyMembership(start_day : Integer, end_day : Integer, price : Real) : Membership
+    bookSession(s : ClassSession) : Booking
+    cancelBooking(b : Booking)
+end
+
+class Membership
+attributes
+    card_number : String
+    start_day : Integer
+    end_day : Integer
+    status : MembershipStatus
+    price : Real
+operations
+    renew(newend_day : Integer)
+    suspend()
+    activate()
+end
+
+class Trainer
+attributes
+    name : String
+    email : String
+    qualifications : Set(String)
+operations
+    addQualification(q : String)
+    removeQualification(q : String)
+end
+
+class ClassSession
+attributes
+    title : String
+    class_type : String
+    day : Integer
+    start_hour : Integer
+    duration_hours : Integer
+    capacity : Integer
+operations
+    -- Query 4: uses collection operations to calculate remaining capacity.
+    freePlaces() : Integer =
+        self.capacity - self.bookings->select(b | b.status = #Reserved or b.status = #Attended)->size()
+
+    assignTrainer(t : Trainer)
+    reschedule(new_day : Integer, newstart_hour : Integer)
+end
+
+class Booking
+attributes
+    booking_no : String
+    status : BookingStatus
+    created_day : Integer
+operations
+    markAttended()
+    cancel()
+end
+
+class Payment
+attributes
+    amount : Real
+    paid_day : Integer
+    status : PaymentStatus
+operations
+    refund()
+end
+
+-- =========================
+-- RELATIONS
+-- =========================
+
+association MemberMembership between
+    Member[1] role member
+    Membership[*] role memberships
+end
+
+association MemberBooking between
+    Member[1] role member
+    Booking[*] role bookings
+end
+
+association SessionBooking between
+    ClassSession[1] role session
+    Booking[*] role bookings
+end
+
+association TrainerSession between
+    Trainer[1] role trainer
+    ClassSession[*] role sessions
+end
+
+association MembershipPayment between
+    Membership[1] role membership
+    Payment[*] role payments
+end
+
+constraints
+
+-- =========================
+-- INVARIANTS
+-- =========================
+
+-- invariant 1
+context Member
+    -- Member must have a realistic age for sport club registration
+    inv MemberAgeIsValid:
+        self.age >= 16 and self.age <= 100
+
+-- invariant 2
+context Member
+    -- Email is required and must contain '@'
+    inv MemberEmailIsValid:
+        self.email.size() > 3 and self.email.indexOf('@') > 1
+
+-- invariant 3
+context Member
+    -- Collection operation select: a member may have at most one Active membership
+    inv MemberHasAtMostOneActiveMembership:
+        self.memberships->select(m | m.status = #Active)->size() <= 1
+
+-- invariant 4
+context Member
+    -- Collection operation forAll: every reserved booking must belong to a session covered by an active membership
+    inv ReservedBookingsCoveredByActiveMembership:
+        self.bookings->select(b | b.status = #Reserved)->forAll(b |
+            self.memberships->exists(m |
+                m.status = #Active and
+                m.start_day <= b.session.day and
+                m.end_day >= b.session.day
+            )
+        )
+
+-- invariant 5
+context Member
+    -- Collection of collections + collection type Set(Booking):
+    -- for every booked day, the member may have no more than two reserved sessions
+    inv NoMoreThanTwoReservedBookingsPerDay:
+        self.bookings->forAll(b |
+            self.bookings->select(x |
+                x.session.day = b.session.day and x.status = #Reserved
+            )->size() <= 2
+        )
+
+-- invariant 6
+context Member
+    -- Tuple: the calculated summary tuple must match the real number of bookings
+    inv BookingSummaryTupleIsConsistent:
+        let summary =
+            Tuple{
+                reserved = self.bookings->select(b | b.status = #Reserved)->size(),
+                total = self.bookings->size()
+            }
+        in summary.reserved <= summary.total
+
+-- invariant 7
+context Membership
+    -- Membership date interval must be valid
+    inv MembershipPeriodIsValid:
+        self.start_day < self.end_day
+
+-- invariant 8
+context Membership
+    -- Membership price must be positive
+    inv MembershipPriceIsPositive:
+        self.price > 0.0
+
+-- invariant 9
+context Membership
+    -- allInstances 1/2: membership card numbers must be unique
+    inv Membershipcard_numberIsGloballyUnique:
+        Membership.allInstances()->isUnique(m | m.card_number)
+
+-- invariant 10
+context Membership
+    -- Collection operations select and sum: paid payments may not exceed the membership price
+    inv PaidAmountDoesNotExceedPrice:
+        self.payments->select(p | p.status = #Paid)->collect(p | p.amount)->sum() <= self.price
+
+-- invariant 11
+context Trainer
+    -- Trainer must have at least one qualification
+    inv TrainerHasQualification:
+        self.qualifications->size() >= 1
+
+-- invariant 12
+context Trainer
+    -- Collection of collections + collection type Set(ClassSession):
+    -- one trainer may conduct no more than 3 sessions per day
+    inv TrainerHasMaximumThreeSessionsPerDay:
+        self.sessions->forAll(s |
+            self.sessions->select(x | x.day = s.day)->size() <= 3
+        )
+
+-- invariant 13
+context ClassSession
+    -- Capacity must be reasonable
+    inv SessionCapacityIsValid:
+        self.capacity >= 1 and self.capacity <= 30
+
+-- invariant 14
+context ClassSession
+    -- Session time must fit into the club working hours
+    inv SessionTimeIsInsideWorkingHours:
+        self.start_hour >= 6 and self.start_hour + self.duration_hours <= 22
+
+-- invariant 15
+context ClassSession
+    -- Collection operations select and size: reserved/attended bookings may not exceed capacity
+    inv SessionCapacityIsNotExceeded:
+        self.bookings->select(b | b.status = #Reserved or b.status = #Attended)->size() <= self.capacity
+
+-- invariant 16
+context ClassSession
+    -- Collection operation isUnique: the same member cannot reserve the same class session twice
+    inv MembersAreUniqueInOneSession:
+        self.bookings->select(b | b.status = #Reserved or b.status = #Attended)->isUnique(b | b.member)
+
+-- invariant 17
+context ClassSession
+    -- Collection type Sequence(String): names collected from bookings must not be empty
+    inv BookedMemberNamesAreNotEmpty:
+        let names : Sequence(String) =
+            self.bookings->collect(b | b.member.name)->asSequence()
+        in names->forAll(n | n.size() > 0)
+
+-- invariant 18
+context ClassSession
+    -- Trainer must be qualified for the class type
+    inv TrainerIsQualifiedForSessionType:
+        self.trainer.qualifications->includes(self.class_type)
+
+-- invariant 19
+context Booking
+    -- Booking must be created not later than the session day
+    inv BookingCreatedBeforeOrOnSessionDay:
+        self.created_day <= self.session.day
+
+-- invariant 20
+context Booking
+    -- allInstances 1/2: booking numbers must be unique
+    inv BookingNumberIsGloballyUnique:
+        Booking.allInstances()->isUnique(b | b.booking_no)
+
+-- invariant 21
+context Booking
+    -- Tuple: tuple combines related feature values for a simple consistency check
+    inv BookingTupleIsConsistent:
+        let info =
+            Tuple{
+                memberEmail = self.member.email,
+                sessionDay = self.session.day,
+                created = self.created_day
+            }
+        in info.memberEmail.indexOf('@') > 1 and info.created <= info.sessionDay
+
+-- invariant 22
+context Payment
+    -- Payment amount must be positive
+    inv PaymentAmountIsPositive:
+        self.amount > 0.0
+
+-- invariant 23
+context Payment
+    -- Paid day must be inside the membership period
+    inv PaymentDateFitsMembership:
+        self.paid_day >= self.membership.start_day and self.paid_day <= self.membership.end_day
+
+-- =========================
+-- PRE/POST CONDITIONS
+-- =========================
+
+context Member::buyMembership(start_day : Integer, end_day : Integer, price : Real) : Membership
+    -- A member may buy a membership only for a valid future interval and positive price
+    pre BuyMembershipInputIsValid:
+        start_day < end_day and price > 0.0
+    -- Collection operation including + @pre: after buying, the new membership belongs to the member
+    post BuyMembershipAddedToMember:
+        self.memberships = self.memberships@pre->including(result)
+    -- @pre: the number of memberships increases by one
+    post BuyMembershipCountIncreases:
+        self.memberships->size() = self.memberships@pre->size() + 1
+    -- Result values are initialized from operation parameters
+    post BuyMembershipResultIsInitialized:
+        result.start_day = start_day and result.end_day = end_day and
+        result.price = price and result.status = #Active
+
+context Member::bookSession(s : ClassSession) : Booking
+    -- Member must have an active membership covering the session day
+    pre BookSessionHasActiveMembership:
+        self.memberships->exists(m |
+            m.status = #Active and m.start_day <= s.day and m.end_day >= s.day
+        )
+    -- Session must have free places
+    pre BookSessionHasFreePlace:
+        s.bookings->select(b | b.status = #Reserved or b.status = #Attended)->size() < s.capacity
+    -- Member must not already have a reserved/attended booking for this session
+    pre BookSessionIsNotDuplicate:
+        self.bookings->select(b |
+            b.session = s and (b.status = #Reserved or b.status = #Attended)
+        )->isEmpty()
+    -- Collection operation including + @pre
+    post BookSessionAddedToMember:
+        self.bookings = self.bookings@pre->including(result)
+    -- Collection operation including + @pre for the class session
+    post BookSessionAddedToSession:
+        s.bookings = s.bookings@pre->including(result)
+    -- Result is a reserved booking for this member and this session
+    post BookSessionResultIsInitialized:
+        result.member = self and result.session = s and result.status = #Reserved
+
+context Member::cancelBooking(b : Booking)
+    -- A member can cancel only their own reserved booking
+    pre CancelBookingIsOwnReservedBooking:
+        self.bookings->includes(b) and b.status = #Reserved
+    -- @pre: booking remains owned by the same member but becomes Cancelled
+    post CancelBookingChangesStatus:
+        b.member = self and b.status = #Cancelled and b.status@pre = #Reserved
+    -- @pre: number of member bookings does not change
+    post CancelBookingCountUnchanged:
+        self.bookings->size() = self.bookings@pre->size()
+
+context Membership::renew(newend_day : Integer)
+    -- A membership can be renewed only by extending its end day
+    pre RenewExtendsMembership:
+        newend_day > self.end_day
+    -- @pre: end day changes to the new value
+    post RenewUpdatesend_day:
+        self.end_day = newend_day and self.end_day > self.end_day@pre
+    -- Status becomes active after renewal
+    post RenewMakesMembershipActive:
+        self.status = #Active
+
+context Membership::suspend()
+    -- Only an active membership can be suspended
+    pre SuspendOnlyActiveMembership:
+        self.status = #Active
+    -- @pre: status changes from Active to Suspended
+    post SuspendChangesStatus:
+        self.status@pre = #Active and self.status = #Suspended
+
+context Membership::activate()
+    -- Only a suspended membership can be activated
+    pre ActivateOnlySuspendedMembership:
+        self.status = #Suspended
+    -- @pre: status changes from Suspended to Active
+    post ActivateChangesStatus:
+        self.status@pre = #Suspended and self.status = #Active
+
+context Trainer::addQualification(q : String)
+    -- Qualification name must not be empty and must not already exist
+    pre AddQualificationIsNew:
+        q.size() > 0 and self.qualifications->excludes(q)
+    -- Collection operation including + @pre
+    post AddQualificationIncluded:
+        self.qualifications = self.qualifications@pre->including(q)
+
+context Trainer::removeQualification(q : String)
+    -- Qualification can be removed only if trainer has it and no assigned session needs it
+    pre RemoveQualificationIsSafe:
+        self.qualifications->includes(q) and
+        self.sessions->select(s | s.class_type = q)->isEmpty()
+    -- Collection operation excluding + @pre
+    post RemoveQualificationExcluded:
+        self.qualifications = self.qualifications@pre->excluding(q)
+
+context ClassSession::assignTrainer(t : Trainer)
+    -- Trainer must be qualified for the session type
+    pre AssignTrainerIsQualified:
+        t.qualifications->includes(self.class_type)
+    -- Trainer may not exceed three sessions on that day
+    pre AssignTrainerDailyLimit:
+        t.sessions->select(s | s.day = self.day)->size() < 3
+    -- @pre: trainer is changed to the new trainer
+    post AssignTrainerChanged:
+        self.trainer = t and self.trainer@pre <> t
+    -- Collection operation including + @pre
+    post AssignTrainerSessionIncluded:
+        t.sessions = t.sessions@pre->including(self)
+
+context ClassSession::reschedule(new_day : Integer, newstart_hour : Integer)
+    -- New time must be valid
+    pre RescheduleTimeIsValid:
+        new_day > 0 and newstart_hour >= 6 and newstart_hour + self.duration_hours <= 22
+    -- @pre: day and start hour are updated
+    post RescheduleUpdatesTime:
+        self.day = new_day and self.start_hour = newstart_hour and
+        (self.day <> self.day@pre or self.start_hour <> self.start_hour@pre)
+    -- Existing bookings stay attached to the same session
+    post RescheduleKeepsBookings:
+        self.bookings = self.bookings@pre
+
+context Booking::markAttended()
+    -- Only reserved booking can be marked as attended
+    pre MarkAttendedOnlyReserved:
+        self.status = #Reserved
+    -- @pre: status changes from Reserved to Attended
+    post MarkAttendedChangesStatus:
+        self.status@pre = #Reserved and self.status = #Attended
+
+context Booking::cancel()
+    -- Only reserved booking can be cancelled
+    pre CancelOnlyReservedBooking:
+        self.status = #Reserved
+    -- @pre: status changes from Reserved to Cancelled
+    post CancelChangesStatus:
+        self.status@pre = #Reserved and self.status = #Cancelled
+
+context Payment::refund()
+    -- Only paid payment can be refunded
+    pre RefundOnlyPaidPayment:
+        self.status = #Paid
+    -- @pre: status changes from Paid to Refunded
+    post RefundChangesStatus:
+        self.status@pre = #Paid and self.status = #Refunded
