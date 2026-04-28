@@ -1,0 +1,55 @@
+-- Creates at least 5 objects that intentionally violate invariants.
+
+reset
+
+!create badMember : Member
+!set badMember.name := 'Bad Member'
+!set badMember.email := 'bad-email'
+!set badMember.age := 14
+-- Violates MemberAgeIsValid and MemberEmailIsValid.
+
+!create badTrainer : Trainer
+!set badTrainer.name := 'No Qualification Trainer'
+!set badTrainer.email := 'trainer@club.lt'
+!set badTrainer.qualifications := Set{}
+-- Violates TrainerHasQualification.
+
+!create badSession : ClassSession
+!set badSession.title := 'Impossible Night Training'
+!set badSession.class_type := 'Yoga'
+!set badSession.day := 20
+!set badSession.start_hour := 23
+!set badSession.duration_hours := 2
+!set badSession.capacity := 0
+-- Violates SessionCapacityIsValid and SessionTimeIsInsideWorkingHours.
+
+!create badMembership : Membership
+!set badMembership.card_number := 'BAD-CARD'
+!set badMembership.start_day := 30
+!set badMembership.end_day := 10
+!set badMembership.status := #Active
+!set badMembership.price := -5.0
+-- Violates MembershipPeriodIsValid and MembershipPriceIsPositive.
+
+!insert (badMember, badMembership) into MemberMembership
+
+!create badPayment : Payment
+!set badPayment.amount := -20.0
+!set badPayment.paid_day := 50
+!set badPayment.status := #Paid
+!insert (badMembership, badPayment) into MembershipPayment
+-- Violates PaymentAmountIsPositive and PaymentDateFitsMembership.
+
+!insert (badTrainer, badSession) into TrainerSession
+-- Also violates TrainerIsQualifiedForSessionType because trainer has no Yoga qualification.
+
+!create badBooking : Booking
+!set badBooking.booking_no := 'BAD-B-001'
+!set badBooking.status := #Reserved
+!set badBooking.created_day := 25
+!insert (badMember, badBooking) into MemberBooking
+!insert (badSession, badBooking) into SessionBooking
+-- Violates BookingCreatedBeforeOrOnSessionDay and capacity-related invariants.
+
+-- Expected: check should report invariant violations.
+check

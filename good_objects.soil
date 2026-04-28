@@ -1,0 +1,90 @@
+-- Creates at least 10 objects that should satisfy all invariants.
+
+reset
+
+!create m1 : Member
+!set m1.name := 'Jonas Kazlauskas'
+!set m1.email := 'jonas@club.lt'
+!set m1.age := 24
+
+!create m2 : Member
+!set m2.name := 'Ieva Paulauskaite'
+!set m2.email := 'ieva@club.lt'
+!set m2.age := 31
+
+!create tr1 : Trainer
+!set tr1.name := 'Tomas Petrauskas'
+!set tr1.email := 'tomas@club.lt'
+!set tr1.qualifications := Set{'Yoga', 'Pilates'}
+
+!create tr2 : Trainer
+!set tr2.name := 'Rasa Vaitkute'
+!set tr2.email := 'rasa@club.lt'
+!set tr2.qualifications := Set{'Boxing', 'Strength'}
+
+!create s1 : ClassSession
+!set s1.title := 'Morning Yoga'
+!set s1.class_type := 'Yoga'
+!set s1.day := 10
+!set s1.start_hour := 8
+!set s1.duration_hours := 1
+!set s1.capacity := 10
+
+!create s2 : ClassSession
+!set s2.title := 'Strength Basics'
+!set s2.class_type := 'Strength'
+!set s2.day := 11
+!set s2.start_hour := 18
+!set s2.duration_hours := 2
+!set s2.capacity := 12
+
+!insert (tr1, s1) into TrainerSession
+!insert (tr2, s2) into TrainerSession
+
+!create mem1 : Membership
+!set mem1.card_number := 'CARD-001'
+!set mem1.start_day := 1
+!set mem1.end_day := 40
+!set mem1.status := #Active
+!set mem1.price := 60.0
+
+!create mem2 : Membership
+!set mem2.card_number := 'CARD-002'
+!set mem2.start_day := 1
+!set mem2.end_day := 35
+!set mem2.status := #Active
+!set mem2.price := 55.0
+
+!insert (m1, mem1) into MemberMembership
+!insert (m2, mem2) into MemberMembership
+
+!create p1 : Payment
+!set p1.amount := 60.0
+!set p1.paid_day := 1
+!set p1.status := #Paid
+!insert (mem1, p1) into MembershipPayment
+
+!create p2 : Payment
+!set p2.amount := 55.0
+!set p2.paid_day := 1
+!set p2.status := #Paid
+!insert (mem2, p2) into MembershipPayment
+
+!create b1 : Booking
+!set b1.booking_no := 'B-001'
+!set b1.status := #Reserved
+!set b1.created_day := 3
+
+!create b2 : Booking
+!set b2.booking_no := 'B-002'
+!set b2.status := #Reserved
+!set b2.created_day := 4
+
+!insert (m1, b1) into MemberBooking
+!insert (s1, b1) into SessionBooking
+
+!insert (m2, b2) into MemberBooking
+!insert (s2, b2) into SessionBooking
+
+-- Expected: check should pass.
+check
