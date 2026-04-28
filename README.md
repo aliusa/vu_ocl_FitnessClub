@@ -21,7 +21,19 @@ Use OCL tool to:
 * create and check at least 10 class objects that satisfy all invariants,
 * create and check at least 5 class objects that do not satisfy at least one invariant.
 
-To run use [USE](https://sourceforge.net/projects/useocl/) program.
+Recommended tool: [USE](https://sourceforge.net/projects/useocl/) - a system for the specification and validation of information systems based on a subset of UML and OCL:
+* Download [USE](https://sourceforge.net/projects/useocl/) tool,
+* USE tool [Documentation](https://www.db.informatik.uni-bremen.de/projects/USE/use-documentation.pdf),
+* [USE Quick Tour](https://www.db.informatik.uni-bremen.de/projects/USE/qt.html),
+* also see  "The UML-based Specification Environment (USE) Tutorial" on YouTube.
+
+Any other OCL tool can be used. More about OCL tools:
+* [List of OCL tools](https://modeling-languages.com/list-ocl-tools/)
+* [OCLE](https://lci.cs.ubbcluj.ro/ocle/index.htm) - OCL Environment (supports both, syntax checking and Java code generation, requires Java 2 SE JRE ver. 6),
+* [Eclipse OCL](https://projects.eclipse.org/projects/modeling.ocl) - OCL Eclipse plug-in (supports all main features, evaluating OCL constraints, Java code generation, etc.)
+
+If the choosen tool does not support a certain construct, e.g. tuple, then the corresponding constraint shoud be modeled (defined) by another appropriate construct.
+
 ```use
 open FitnessClub.use
 read good_objects.soil
