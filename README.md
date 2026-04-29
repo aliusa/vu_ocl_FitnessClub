@@ -35,3 +35,5 @@ open FitnessClub.use
 read good_objects.soil
 read bad_objects.soil
 ```
+
+![states](states.png "states")
