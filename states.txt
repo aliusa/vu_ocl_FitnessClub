@@ -1,0 +1,96 @@
+@startuml
+title Fitness Club Membership System
+
+enum MembershipStatus {
+  Active
+  Suspended
+  Expired
+}
+
+enum BookingStatus {
+  Reserved
+  Attended
+  Cancelled
+}
+
+enum PaymentStatus {
+  Paid
+  Refunded
+  Failed
+}
+
+class Member {
+  name : String
+  email : String
+  age : Integer
+  --
+  reservedBookings() : Set<Booking>
+  bookingCountByStatus(st : BookingStatus) : Integer
+  bookingSummary() : Tuple
+  buyMembership(startDay : Integer, endDay : Integer, price : Real) : Membership
+  bookSession(s : ClassSession) : Booking
+  cancelBooking(b : Booking)
+}
+
+class Membership {
+  cardNumber : String
+  startDay : Integer
+  endDay : Integer
+  status : MembershipStatus
+  price : Real
+  --
+  renew(newEndDay : Integer)
+  suspend()
+  activate()
+}
+
+class Trainer {
+  name : String
+  email : String
+  qualifications : Set<String>
+  --
+  addQualification(q : String)
+  removeQualification(q : String)
+}
+
+class ClassSession {
+  title : String
+  classType : String
+  day : Integer
+  startHour : Integer
+  durationHours : Integer
+  capacity : Integer
+  --
+  freePlaces() : Integer
+  assignTrainer(t : Trainer)
+  reschedule(newDay : Integer, newStartHour : Integer)
+}
+
+class Booking {
+  bookingNo : String
+  status : BookingStatus
+  createdDay : Integer
+  --
+  markAttended()
+  cancel()
+}
+
+class Payment {
+  amount : Real
+  paidDay : Integer
+  status : PaymentStatus
+  --
+  refund()
+}
+
+Member "1" -- "0..*" Membership : memberships
+Member "1" -- "0..*" Booking : bookings
+ClassSession "1" -- "0..*" Booking : bookings
+Trainer "1" -- "0..*" ClassSession : sessions
+Membership "1" -- "0..*" Payment : payments
+
+Membership --> MembershipStatus
+Booking --> BookingStatus
+Payment --> PaymentStatus
+
+@enduml
